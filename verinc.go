@@ -18,7 +18,7 @@ import (
 // Global version of verinc (increment this manually when you release a new build).
 // Example: 1.0.5 -> 1.0.2
 const (
-	szVerincVersion = "2.0.4" // _VERSION
+	szVerincVersion = "2.0.5" // _VERSION
 )
 
 // Exit codes (documented in --help):
@@ -304,7 +304,7 @@ func main() {
 	}
 
 	if stCfg.bShowVersion {
-		fmt.Fprintf(os.Stdout, "verinc version %s\n@(#) $Id: verinc.go,v 1.5 2026/04/10 08:22:39 ralph Exp $\n", szVerincVersion)
+		fmt.Fprintf(os.Stdout, "verinc version %s\n@(#) $Id: verinc.go,v 1.6 2026/04/11 21:38:00 ralph Exp $\n", szVerincVersion)
 		os.Exit(iExitOK)
 	}
 
