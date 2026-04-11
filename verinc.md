@@ -107,4 +107,12 @@ Build directly from the source using Go:
 go build -o verinc verinc.go
 ```
 
+## 👷 Triggering a Release
+
+Push a version tag to start the GitHub Actions build:
+
+* **Commit all**:    `git commit -a -s -m "..."`
+* **Tag**: `git tag v2.0.5`
+* **Push**: `git push origin v2.0.5`
+
 // end of document
