@@ -1,0 +1,116 @@
+# .github/workflows/release.yaml
+# (c) by Ralph Roth, ROSE SWE - 11.04.2026 initial creation
+# This workflow builds and releases static binaries for the verinc tool.
+# It triggers on version tags and creates both individual platform ZIPs
+# and a single "Master" ZIP containing all builds.
+
+name: verinc - Release Static Binaries
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+*'
+      - '[0-9]+.[0-9]+.[0-9]+*'
+
+permissions:
+  contents: write
+
+env:
+  # Opt-in to Node.js 24 for all actions in this workflow
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  SRC_NAME: verinc.go
+
+jobs:
+  build:
+    name: Build and Release Individual Platforms
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { goos: linux,   goarch: amd64, binary_extension: "" }
+          - { goos: linux,   goarch: "386",  binary_extension: "" }
+          - { goos: linux,   goarch: arm64, binary_extension: "" }
+          - { goos: windows, goarch: amd64, binary_extension: ".exe" }
+          - { goos: windows, goarch: "386",  binary_extension: ".exe" }
+          - { goos: darwin,  goarch: amd64, binary_extension: "" }
+          - { goos: darwin,  goarch: arm64, binary_extension: "" }
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: false
+
+      - name: Install UPX
+        run: sudo apt-get update && sudo apt-get install -y upx
+
+      - name: Build Static Binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          mkdir -p bin
+          # Build binary using the source file variable
+          go build -ldflags "-s -w" -o bin/verinc${{ matrix.binary_extension }} ${{ env.SRC_NAME }}
+
+      - name: Compress with UPX
+        # Size reduction; continues even if UPX fails on specific formats
+        run: upx --best --lzma bin/verinc${{ matrix.binary_extension }} || true
+
+      - name: Create Individual ZIP Package
+        run: |
+          # Package only the binary for this specific platform
+          zip verinc-${{ matrix.goos }}-${{ matrix.goarch }}.zip bin/*
+
+      - name: Upload Individual Release Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: verinc-${{ matrix.goos }}-${{ matrix.goarch }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Artifact for Master Package
+        # Temporarily store the binary to be collected by the release-all job
+        uses: actions/upload-artifact@v4
+        with:
+          name: verinc-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: bin/verinc${{ matrix.binary_extension }}
+
+  release-all:
+    name: Create Master ZIP (ALL)
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-binaries
+          merge-multiple: false
+
+      - name: Prepare Master Directory and Rename Binaries
+        run: |
+          mkdir -p verinc-all
+          # Copy binaries to a single folder with descriptive names to avoid collisions
+          cp all-binaries/verinc-linux-amd64/verinc verinc-all/verinc-linux-amd64
+          cp all-binaries/verinc-linux-386/verinc verinc-all/verinc-linux-386
+          cp all-binaries/verinc-linux-arm64/verinc verinc-all/verinc-linux-arm64
+          cp all-binaries/verinc-windows-amd64/verinc.exe verinc-all/verinc-windows-amd64.exe
+          cp all-binaries/verinc-windows-386/verinc.exe verinc-all/verinc-windows-386.exe
+          cp all-binaries/verinc-darwin-amd64/verinc verinc-all/verinc-macos-intel
+          cp all-binaries/verinc-darwin-arm64/verinc verinc-all/verinc-macos-arm64
+
+          # Zip all renamed binaries into one "Master" package
+          zip -j verinc-all-platforms.zip verinc-all/*
+
+      - name: Upload Master ZIP Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: verinc-all-platforms.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
