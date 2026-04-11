@@ -5,8 +5,8 @@
 
 `verinc` is a robust, lightweight command-line utility written in Go (v1.25++) designed to automate the management of version strings within source code. It targets specific lines containing version tokens and applies custom incrementation rules, making it ideal for build pipelines and release management.
 
->[!Hint]
-We use this tool in-house for various projects e.g. for cfg2html or getrpm (both available on github too).
+>[!NOTE]
+> We use this tool in-house for various projects e.g. for cfg2html or getrpm (both available on github too).
 
 ---
 
