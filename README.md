@@ -60,6 +60,7 @@ verinc [options] file1 [file2 ...]
 | `-?`, `-h` | `--help` | Show detailed help and documentation. |
 | `-V` | `--version` | Show current version of the `verinc` tool. |
 | `-v` | `--verbose` | Enable verbose output (shows specific line changes). |
+| `-g` | `--get` | Return the first matching version string to stdout (useful for Makefiles/scripts). |
 | `-m` | `--minor` | Bump **MINOR** version and reset **PATCH** to 1. |
 | `-j` | `--major` | Bump **MAJOR** version and reset **MINOR/PATCH** to 0/1. |
 
@@ -95,6 +96,16 @@ verinc -m -v ~/src/project/version.go
 **Updating multiple files at once:**
 ```bash
 verinc -v config.json constants.pas README.md
+```
+
+**Get first matching version string (for Makefiles/Bash scripts):**
+```bash
+verinc --get version.go
+# Output: 2.05
+
+# Useful in Makefiles or shell scripts:
+VER=$(verinc -g main.pas)
+echo "Version is $VER"
 ```
 
 ---

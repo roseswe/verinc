@@ -18,7 +18,7 @@ import (
 // Global version of verinc (increment this manually when you release a new build).
 // Example: 1.0.5 -> 1.0.2
 const (
-	szVerincVersion = "2.0.5" // _VERSION
+	szVerincVersion = "2.1.1" // _VERSION
 )
 
 // Exit codes (documented in --help):
@@ -47,6 +47,7 @@ type tConfig struct {
 	bShowHelp    bool
 	bShowUsage   bool
 	bShowVersion bool
+	bGet         bool
 	bMinor       bool
 	bMajor       bool
 	aszFiles     []string
@@ -64,6 +65,7 @@ func fnMainUsage() {
 	fmt.Fprintf(flag.CommandLine.Output(), "  -?, -h, --help, --usage   Show this detailed help and exit\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  -V, --version             Show verinc program version and exit\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  -v, --verbose             Enable verbose output (default: false)\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "  -g, --get                 Return first matching version string to stdout\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  -m, --minor               Bump minor version instead of patch\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  -j, --major               Bump major version (reset minor and patch to 0 and 1)\n\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "Version rules:\n")
@@ -89,6 +91,8 @@ func fnMainUsage() {
 	fmt.Fprintf(flag.CommandLine.Output(), "  %s main.pas\n", szExeName)
 	fmt.Fprintf(flag.CommandLine.Output(), "  %s -v ~/src/prj/mpscan/mpscan.pas\n", szExeName)
 	fmt.Fprintf(flag.CommandLine.Output(), "  %s -m --verbose ~/tp/vir/rms.pas\n", szExeName)
+	fmt.Fprintf(flag.CommandLine.Output(), "  %s --get file.go\n", szExeName)
+	fmt.Fprintf(flag.CommandLine.Output(), "  VER=$(%s -g main.pas)  # Useful in Makefiles/Bash scripts\n", szExeName)
 }
 
 func fnParseArgs() (*tConfig, error) {
@@ -109,6 +113,9 @@ func fnParseArgs() (*tConfig, error) {
 	pbMajor := stFlagSet.Bool("major", false, "bump major version")
 	pbMajorShort := stFlagSet.Bool("j", false, "bump major version (short)")
 
+	pbGet := stFlagSet.Bool("get", false, "return first matching version string to stdout")
+	pbGetShort := stFlagSet.Bool("g", false, "return first matching version string to stdout (short)")
+
 	// Version flag (long + short)
 	pbVersion := stFlagSet.Bool("version", false, "show verinc program version and exit")
 	pbVersionShort := stFlagSet.Bool("V", false, "show verinc program version and exit (short)")
@@ -122,13 +129,14 @@ func fnParseArgs() (*tConfig, error) {
 	// Aliases handled manually from raw os.Args
 	for _, szArg := range os.Args[1:] {
 		switch szArg {
-		case "-?", "-h", "--help", "--usage", "help", "usage":
+		case "-?", "-h", "--help", "--usage", "help", "usage", "-H", "-help", "-U", "-usage":
 			stCfg.bShowHelp = true
 		}
 	}
 
 	// Merge long/short versions
 	stCfg.bVerbose = *pbVerbose || *pbVerboseShort
+	stCfg.bGet = *pbGet || *pbGetShort
 	stCfg.bMinor = *pbMinor || *pbMinorShort
 	stCfg.bMajor = *pbMajor || *pbMajorShort
 	stCfg.bShowVersion = *pbVersion || *pbVersionShort
@@ -136,8 +144,8 @@ func fnParseArgs() (*tConfig, error) {
 	// Remaining arguments after flag parsing are files
 	stCfg.aszFiles = stFlagSet.Args()
 
-	if len(stCfg.aszFiles) == 0 && !stCfg.bShowHelp && !stCfg.bShowVersion {
-		return nil, errors.New("no files specified")
+	if len(stCfg.aszFiles) == 0 && !stCfg.bShowHelp && !stCfg.bShowVersion && !stCfg.bGet {
+		return nil, errors.New("no files specified! Try --help for usage information.")
 	}
 
 	return stCfg, nil
@@ -180,8 +188,8 @@ func fnBumpVersion(szVersion string, bMinor bool, bMajor bool) (string, error) {
 		iPatch = 1
 	} else if bMinor {
 		// Minor bump: MAJOR.MINOR.PATCH -> MAJOR.(MINOR+1).1
-		iMinor++
-		iPatch = 1
+		iMinor++			// this means we support sth. like 3.42.6 -> 3.43.1
+		iPatch = 1		// if you want 3.9.6 -> 3.10.1, you have to use -j/--major
 	} else {
 		// Patch bump with overflow rule
 		iPatch++
@@ -226,6 +234,37 @@ func fnProcessLine(szFile string, szLine string, bMinor bool, bMajor bool, bVerb
 	}
 
 	return szNewLine, nil
+}
+
+func fnGetVersion(szFile string) (string, error) {
+	fIn, err := os.Open(szFile)
+	if err != nil {
+		return "", err
+	}
+	defer fIn.Close()
+
+	stScanner := bufio.NewScanner(fIn)
+	for stScanner.Scan() {
+		szLine := stScanner.Text()
+
+		// This section will be enhanced in the future to support more patterns, but for now we can just filter lines that don't contain any of the relevant tokens to speed up processing.
+		if !strings.Contains(szLine, "_VERSION") &&
+			!strings.Contains(szLine, "ProductVersion\"") &&
+			!strings.Contains(szLine, "\"Version\"") &&
+			!strings.Contains(szLine, "FileVersion\"") {
+			continue
+		}
+
+		aszMatch := reVersionPattern.FindStringSubmatch(szLine)
+		if len(aszMatch) == 4 {
+			return aszMatch[0], nil
+		}
+	}
+	if err := stScanner.Err(); err != nil {
+		return "", err
+	}
+
+	return "", errors.New("no version pattern found")
 }
 
 func fnProcessFile(szPath string, stCfg *tConfig) (bool, int, error) {
@@ -304,7 +343,25 @@ func main() {
 	}
 
 	if stCfg.bShowVersion {
-		fmt.Fprintf(os.Stdout, "verinc version %s\n@(#) $Id: verinc.go,v 1.6 2026/04/11 21:38:00 ralph Exp $\n", szVerincVersion)
+		fmt.Fprintf(os.Stdout, "verinc version %s\n@(#) $Id: verinc.go,v 1.8 2026/04/17 14:27:46 ralph Exp $\n", szVerincVersion)
+		os.Exit(iExitOK)
+	}
+
+	if stCfg.bGet {
+		// --get mode: return first matching version string to stdout
+		if len(stCfg.aszFiles) == 0 {
+			fnError("No files specified.")
+			os.Exit(iExitNoFiles)
+		}
+
+		for _, szPath := range stCfg.aszFiles {
+			szVersion, err := fnGetVersion(szPath)
+			if err != nil {
+				fnError("Error processing file %s: %v", szPath, err)
+				os.Exit(iExitNoVersionLines)
+			}
+			fmt.Fprintf(os.Stdout, "%s\n", szVersion)
+		}
 		os.Exit(iExitOK)
 	}
 
