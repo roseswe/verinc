@@ -1,7 +1,6 @@
 # verinc - Version Increment Tool
 
-(c) by Ralph Roth, ROSE SWE
-
+(c) by Ralph Roth, ROSE SWE - [verinc at Github](https://github.com/roseswe/verinc)
 
 `verinc` is a robust, lightweight command-line utility written in Go (v1.25++) designed to automate the management of version strings within source code. It targets specific lines containing version tokens and applies custom incrementation rules, making it ideal for build pipelines and release management.
 

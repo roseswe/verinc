@@ -18,7 +18,7 @@ import (
 // Global version of verinc (increment this manually when you release a new build).
 // Example: 1.0.5 -> 1.0.2
 const (
-	szVerincVersion = "2.1.1" // _VERSION
+	szVerincVersion = "2.1.3" // _VERSION
 )
 
 // Exit codes (documented in --help):
@@ -59,7 +59,8 @@ var (
 
 func fnMainUsage() {
 	szExeName := filepath.Base(os.Args[0])
-	fmt.Fprintf(flag.CommandLine.Output(), "verinc - Increment version strings in source files\n\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "verinc - Increment or get version strings in source files\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "         https://github.com/roseswe/verinc\n\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "Usage:\n  %s [options] file1 [file2 ...]\n\n", szExeName)
 	fmt.Fprintf(flag.CommandLine.Output(), "Options:\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  -?, -h, --help, --usage   Show this detailed help and exit\n")
@@ -73,8 +74,8 @@ func fnMainUsage() {
 	fmt.Fprintf(flag.CommandLine.Output(), "  * Default: increment PATCH (3.19.6 -> 3.19.7).\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  * With -m/--minor: increment MINOR and reset PATCH to 1 (3.19.6 -> 3.20.1).\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  * With -j/--major: increment MAJOR and reset MINOR/PATCH to 0/1 (3.19.6 -> 4.0.1).\n")
-	fmt.Fprintf(flag.CommandLine.Output(), "  * If PATCH would reach 10, reset PATCH to 1 and increment MINOR\n")
-	fmt.Fprintf(flag.CommandLine.Output(), "    (3.20.5 -> 3.20.6).\n\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "  * If PATCH would reaches 10, reset PATCH to 1 and increment MINOR\n")
+	fmt.Fprintf(flag.CommandLine.Output(), "    (3.20.9 -> 3.21.1).\n\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "Line selection:\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  * Only lines containing the token \"_VERSION\" are processed.\n")
 	fmt.Fprintf(flag.CommandLine.Output(), "  * The first MAJOR.MINOR.PATCH in such a line is updated.\n\n")
@@ -188,8 +189,8 @@ func fnBumpVersion(szVersion string, bMinor bool, bMajor bool) (string, error) {
 		iPatch = 1
 	} else if bMinor {
 		// Minor bump: MAJOR.MINOR.PATCH -> MAJOR.(MINOR+1).1
-		iMinor++			// this means we support sth. like 3.42.6 -> 3.43.1
-		iPatch = 1		// if you want 3.9.6 -> 3.10.1, you have to use -j/--major
+		iMinor++   // this means we support sth. like 3.42.6 -> 3.43.1
+		iPatch = 1 // if you want 3.9.6 -> 3.10.1, you have to use -j/--major
 	} else {
 		// Patch bump with overflow rule
 		iPatch++
@@ -343,7 +344,7 @@ func main() {
 	}
 
 	if stCfg.bShowVersion {
-		fmt.Fprintf(os.Stdout, "verinc version %s\n@(#) $Id: verinc.go,v 1.8 2026/04/17 14:27:46 ralph Exp $\n", szVerincVersion)
+		fmt.Fprintf(os.Stdout, "verinc version %s\n@(#) $Id: verinc.go,v 1.10 2026/04/18 18:39:24 ralph Exp $\n", szVerincVersion)
 		os.Exit(iExitOK)
 	}
 
