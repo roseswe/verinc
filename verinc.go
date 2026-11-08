@@ -76,7 +76,7 @@ import (
 // Global version of verinc (increment this manually when you release a new build).
 // Example: 1.0.5 -> 1.0.2
 const (
-	szVerincVersion = "2.2.1" // _VERSION
+	szVerincVersion = "2.2.2" // _VERSION
 )
 
 // Exit codes (documented in --help):
