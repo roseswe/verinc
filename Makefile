@@ -1,12 +1,20 @@
 # Generic Linux Makefile for building GO programs for multiple platforms
-# @(#) $Id: Makefile,v 1.8 2026/11/04 12:00:00 ralph Exp $
-# Loc: $Header: /home/cvs/src/go/Makefile,v 1.8 2026/11/04 12:00:00 ralph Exp $
+# @(#) $Id: Makefile,v 1.1 2026/11/08 23:09:29 ralph Exp $
+# Loc: $Header: /home/cvs/src/go/verinc/Makefile,v 1.1 2026/11/08 23:09:29 ralph Exp $
 
 # Program name is derived from the directory name (tree.go in dir tree/ -> tree).
 PROGRAM = $(shell basename $(CURDIR))
 
 COMMIT_ID = $(shell git rev-parse --short HEAD 2> /dev/null)
 VERSION   = $(shell git describe --tags --abbrev=0 2> /dev/null | sed 's/v//g')
+
+# Release helpers. `verinc -get <prog>.go` prints the version embedded in the
+# program source (e.g. "2.2.1"). settag tags HEAD with `v<version>`; pushtag
+# pushes that single tag so a tag-triggered CI build can start.
+VERINC      ?= verinc
+SRC_VERSION  = $(shell $(VERINC) -get $(PROGRAM).go 2> /dev/null)
+TAG          = v$(SRC_VERSION)
+GIT_REMOTE  ?= origin
 
 # Host OS, used to decide whether external strip is safe. GNU strip can
 # only safely strip binaries for the host format; cross-compiled PE / Mach-O
@@ -50,13 +58,15 @@ export GOARM
 PLATFORMS  = linux/amd64 linux/386 darwin/amd64 darwin/arm64 windows/amd64 windows/386 linux/arm64 linux/arm
 OUTPUT_DIR = build
 
-.PHONY: help all clean tidy distclean install fmt vet test pdf $(PLATFORMS)
+.PHONY: help all clean tidy distclean install fmt vet test pdf \
+        settag pushtag release $(PLATFORMS)
 
 # Default target: show help. Use `make all` for a full cross-build.
 help: ## Show this help screen
-	@echo "$(PROGRAM) - build helpers @(#) $Id:$"
+	@echo "$(PROGRAM) - build helpers 	 @(#) $$Id:$$'"
 	@echo "Commit:  $(COMMIT_ID)"
 	@echo "Version: $(VERSION)"
+	@echo "Source version: $(SRC_VERSION) ($(PROGRAM).go)"
 	@echo ""
 	@awk 'BEGIN {FS = ":.*##"} \
 		/^##@/ {printf "\n\033[1m%s\033[0m\n", substr($$0, 5); next} \
@@ -98,6 +108,47 @@ install: all ## Install the native linux/amd64 build to $(HOME)/bin
 	cp $(OUTPUT_DIR)/$(PROGRAM)-linux-amd64 $(HOME)/bin/$(PROGRAM)
 	@echo "[Info] Installed $(HOME)/bin/$(PROGRAM)"
 
+##@ Release
+
+settag: ## Create annotated tag v<src version> from $(PROGRAM).go
+	@set -e; \
+	if ! command -v $(VERINC) >/dev/null 2>&1; then \
+	  echo "[!!] $(VERINC) not found in PATH"; exit 1; \
+	fi; \
+	if [ -z "$(SRC_VERSION)" ]; then \
+	  echo "[!!] Could not read version from $(PROGRAM).go via '$(VERINC) -get'"; \
+	  exit 1; \
+	fi; \
+	tag="$(TAG)"; \
+	if git rev-parse "$$tag" >/dev/null 2>&1; then \
+	  echo "[!!] Tag $$tag already exists"; exit 1; \
+	fi; \
+	if ! git diff --quiet || ! git diff --cached --quiet; then \
+	  echo "[!!] Warning: working tree is dirty -- $$tag will point at HEAD"; \
+	  echo "     Commit your version bump first if this is unintentional."; \
+	fi; \
+	echo "[Info] Tagging $$tag (source version $(SRC_VERSION))..."; \
+	git tag -a "$$tag" -m "Release $$tag"; \
+	echo "[Info] Created tag $$tag"
+
+pushtag: ## Push $(TAG) to $(GIT_REMOTE) to trigger the CI build
+	@set -e; \
+	if [ -z "$(SRC_VERSION)" ]; then \
+	  echo "[!!] Could not read version from $(PROGRAM).go via '$(VERINC) -get'"; \
+	  exit 1; \
+	fi; \
+	tag="$(TAG)"; \
+	if ! git rev-parse "$$tag" >/dev/null 2>&1; then \
+	  echo "[!!] Tag $$tag does not exist -- run 'make settag' first"; \
+	  exit 1; \
+	fi; \
+	echo "[Info] Pushing $$tag to $(GIT_REMOTE)..."; \
+	git push $(GIT_REMOTE) "$$tag"; \
+	echo "[Info] Pushed $$tag -- tag-triggered CI build should start"
+
+release: settag pushtag ## settag + pushtag (bump version, commit, then run this)
+	@echo "[Info] Release $(TAG) published."
+
 ##@ Housekeeping
 
 clean: ## Remove build artifacts (keeps sources untouched)
@@ -129,4 +180,3 @@ test: ## Run go test
 pdf: $(PROGRAM).md ## Generate PDF from $(PROGRAM).md
 	@echo "[Info] Generating PDF documentation..."
 	markdown2pdf -r $(PROGRAM).md || echo "[!!] markdown2pdf not available"
-
