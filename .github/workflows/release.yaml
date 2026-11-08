@@ -9,8 +9,8 @@ name: verinc - Release Static Binaries
 on:
   push:
     tags:
-      - 'v[0-9]+*'
-      - '[0-9]+.[0-9]+.[0-9]+*'
+      - 'v[0-9]+.[0-9]+.[0-9]+'        # vX.Y.Z (what settag produces)
+      - 'v[0-9]+.[0-9]+.[0-9]+-rc*'    # opt-in prereleases, e.g. v2.3.0-rc1
 
 permissions:
   contents: write
