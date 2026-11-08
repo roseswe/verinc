@@ -56,7 +56,7 @@
 // Compatibility: tested build targets are win32/win64 (amd64), linux
 // 386/amd64 and macOS (amd64/arm64). Uses only the Go standard library.
 //
-// $Id: verinc.go,v 1.12 2026/11/08 22:45:12 ralph Exp $
+// $Id: verinc.go,v 1.13 2026/11/08 23:32:14 ralph Exp $
 
 package main
 
@@ -76,7 +76,7 @@ import (
 // Global version of verinc (increment this manually when you release a new build).
 // Example: 1.0.5 -> 1.0.2
 const (
-	szVerincVersion = "2.2.3" // _VERSION
+	szVerincVersion = "2.2.4" // _VERSION
 )
 
 // Exit codes (documented in --help):
@@ -494,7 +494,7 @@ func main() {
 	}
 
 	if stCfg.bShowVersion {
-		fmt.Fprintf(os.Stdout, "verinc version %s\n@(#) $Id: verinc.go,v 1.12 2026/11/08 22:45:12 ralph Exp $\n", szVerincVersion)
+		fmt.Fprintf(os.Stdout, "verinc version %s\n@(#) $Id: verinc.go,v 1.13 2026/11/08 23:32:14 ralph Exp $\n", szVerincVersion)
 		os.Exit(iExitOK)
 	}
 

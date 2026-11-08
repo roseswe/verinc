@@ -127,5 +127,30 @@ verinc --get version.go
 VER=$(verinc -g main.pas)
 echo "Version is $VER"
 ```
+## Internal Note on Release handling
+
+Typical workflow with DCO
+ 1. bump the version inside verinc.go (editor or 'verinc -set verinc.go 2.2.3')
+ 2. commit with DCO trailer (make commit signs off for you)
+
+        make commit MSG="bump verinc to 2.2.3"
+
+ 3. tag and push (settag enforces Signed-off-by, pushtag is idempotent)
+
+        make settag
+        make pushtag
+
+or in one shot, after step 2:
+
+        make release
+
+If you forget step 2 and try make settag directly:
+
+>[!WARNING]
+
+        [!!] HEAD commit has no Signed-off-by -- DCO not satisfied
+            Run 'make signoff' or use 'make commit MSG="..."' first.
+
+Then make signoff fixes it in place (only safe if HEAD isn't already tagged — the guard catches that case and tells you exactly what to do).
 
 // end of document

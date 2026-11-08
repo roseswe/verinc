@@ -1,6 +1,6 @@
 # Generic Linux Makefile for building GO programs for multiple platforms
-# @(#) $Id: Makefile,v 1.10 2026/11/04 12:00:00 ralph Exp $
-# Loc: $Header: /home/cvs/src/go/Makefile,v 1.10 2026/11/04 12:00:00 ralph Exp $
+# @(#) $Id: Makefile,v 1.11 2026/11/04 12:00:00 ralph Exp $
+# Loc: $Header: /home/cvs/src/go/Makefile,v 1.11 2026/11/04 12:00:00 ralph Exp $
 #
 # Parallelism: every platform target is independent -- each writes its own
 # file under $(OUTPUT_DIR), and $(OUTPUT_DIR) is an order-only prerequisite
@@ -8,6 +8,10 @@
 # near-linearly: `make -j$(nproc)` builds all 8 platforms in roughly the
 # time of the slowest single one. Do NOT use -j with release targets:
 # settag and pushtag must run sequentially in that order.
+#
+# DCO / Signed-off-by: `make commit` and `make signoff` add the
+# Signed-off-by trailer required by the Developer Certificate of Origin.
+# `settag` refuses to tag a HEAD commit that has no Signed-off-by line.
 
 # Program name is derived from the directory name (tree.go in dir tree/ -> tree).
 PROGRAM = $(shell basename $(CURDIR))
@@ -22,6 +26,11 @@ VERINC      ?= verinc
 SRC_VERSION  = $(shell $(VERINC) -get $(PROGRAM).go 2> /dev/null)
 TAG          = v$(SRC_VERSION)
 GIT_REMOTE  ?= origin
+
+# DCO / Signed-off-by. Used by `make commit` and `make signoff` and checked
+# by `settag`. Both must be set, otherwise the release targets abort early.
+GIT_NAME     = $(shell git config user.name)
+GIT_EMAIL    = $(shell git config user.email)
 
 # Host OS, used to decide whether external strip is safe. GNU strip can
 # only safely strip binaries for the host format; cross-compiled PE / Mach-O
@@ -66,7 +75,7 @@ PLATFORMS  = linux/amd64 linux/386 darwin/amd64 darwin/arm64 windows/amd64 windo
 OUTPUT_DIR = build
 
 .PHONY: help all clean tidy distclean install fmt vet test pdf \
-        settag pushtag release $(PLATFORMS)
+        settag pushtag release commit signoff $(PLATFORMS)
 
 # Default target: show help. Use `make all` for a full cross-build.
 help: ## Show this help screen
@@ -117,9 +126,46 @@ install: all ## Install the native linux/amd64 build to $(HOME)/bin
 
 ##@ Release
 
-# settag is idempotent: if v<version> already exists at HEAD it skips; if it
-# exists at a different commit it aborts so you bump the version first. This
-# makes `make release` re-runnable after a failed push.
+# ENH: Commit with DCO sign-off. This is the recommended way to commit
+# before a release, because 'settag' will verify the trailer is present.
+commit: ## Commit all changes with Signed-off-by (MSG="..." required)
+	@set -e; \
+	if [ -z "$(MSG)" ]; then \
+	  echo "[!!] MSG is required: make commit MSG=\"bump version to 2.2.3\""; \
+	  exit 1; \
+	fi; \
+	if [ -z "$(GIT_NAME)" ] || [ -z "$(GIT_EMAIL)" ]; then \
+	  echo "[!!] git config user.name or user.email is missing"; \
+	  echo "     git config --global user.name  \"Your Name\""; \
+	  echo "     git config --global user.email \"you@example.com\""; \
+	  exit 1; \
+	fi; \
+	git add -A; \
+	git commit -s -m "$(MSG)"; \
+	echo "[Info] Committed with Signed-off-by: $(GIT_NAME) <$(GIT_EMAIL)>"
+
+# ENH: Retroactively sign off HEAD. Refuses to run if HEAD is already tagged
+# (amending would orphan the tag) and skips silently if already signed off.
+signoff: ## Add Signed-off-by to the last commit (HEAD only)
+	@set -e; \
+	if git log -1 --format=%B | grep -q '^Signed-off-by:'; then \
+	  echo "[Info] HEAD already has Signed-off-by -- nothing to do"; \
+	  exit 0; \
+	fi; \
+	if tag=$$(git describe --exact-match --tags HEAD 2>/dev/null); then \
+	  echo "[!!] HEAD is already tagged as $$tag."; \
+	  echo "     'git commit --amend' would leave the tag pointing at the"; \
+	  echo "     old commit. Delete the tag first, then re-sign and re-tag:"; \
+	  echo "       git tag -d $$tag && make signoff && make settag"; \
+	  exit 1; \
+	fi; \
+	git commit --amend -s --no-edit; \
+	echo "[Info] Signed-off-by added to HEAD"
+
+# ENH: settag is idempotent: if v<version> already exists at HEAD it skips;
+# if it exists at a different commit it aborts so you bump the version first.
+# This makes `make release` re-runnable after a failed push. Also enforces
+# the DCO trailer, so a tag can never point at an unsigned commit.
 settag: ## Create annotated tag v<src version> (skips if already at HEAD)
 	@set -e; \
 	if ! command -v $(VERINC) >/dev/null 2>&1; then \
@@ -127,6 +173,11 @@ settag: ## Create annotated tag v<src version> (skips if already at HEAD)
 	fi; \
 	if [ -z "$(SRC_VERSION)" ]; then \
 	  echo "[!!] Could not read version from $(PROGRAM).go via '$(VERINC) -get'"; \
+	  exit 1; \
+	fi; \
+	if ! git log -1 --format=%B | grep -q '^Signed-off-by:'; then \
+	  echo "[!!] HEAD commit has no Signed-off-by -- DCO not satisfied"; \
+	  echo "     Run 'make signoff' or use 'make commit MSG=\"...\"' first."; \
 	  exit 1; \
 	fi; \
 	tag="$(TAG)"; \
